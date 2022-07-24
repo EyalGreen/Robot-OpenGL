@@ -1,0 +1,377 @@
+
+
+#include <iostream>
+#include <stdlib.h>
+
+#include <OpenGL/OpenGL.h>
+#include <GLUT/glut.h>
+#include <math.h>
+#include <string>
+#include <iostream>
+#include <vector>
+#include <limits>
+#include <iostream>
+using namespace std;
+
+// Constants
+const int WINDOW_WIDTH = 700;
+const int WINDOW_HEIGHT = 700;
+const double PI = 3.14159265358979323846;
+const float WINDOW_RATIO = WINDOW_WIDTH / (float)WINDOW_HEIGHT;
+string msg = "Press any key to change projection";
+float aspect = WINDOW_RATIO;
+
+
+
+// This is the number of frames per second to render.
+static const int FPS = 60;
+
+// This global variable keeps track of the current orientation of the polyhedron.
+static GLfloat currentAngleOfRotation = 0.0;
+
+// Set this to true to change projection.
+static bool orthoProjection = false;
+
+// Function where the scene drawing occures
+void display(void);
+
+// Function for keyboard press
+void keyboard(unsigned char key, int x, int y);
+
+//Function for keyboard special
+void SpecialInput(int key, int x, int y);
+
+// Function to handle reshape of the screen
+void reshape(GLint w, GLint h);
+
+// Function to handle the timer
+void timer(int v);
+
+// Function to update the projection
+void updateProjection();
+
+struct Point
+{
+	double x, y, z;
+};
+
+// dependency: Vector3 and Matrix4
+struct Vector3
+{
+	float x;
+	float y;
+	float z;
+
+public:
+	Vector3()
+	{
+		Vector3::x = 0;
+		Vector3::y = 0;
+		Vector3::z = 0;
+	}
+	Vector3(float x, float y, float z)
+	{
+		Vector3::x = x;
+		Vector3::y = y;
+		Vector3::z = z;
+	}
+
+	void normalize()
+	{
+		double sum = sqrt(x * x + y * y + z * z);
+		x /= sum;
+		y /= sum;
+		z /= sum;
+	}
+	void rotate(float xAngle, float yAngle, float zAngle){
+		float xNew = 0.0f, yNew = 0.0f, zNew = 0.0f;
+		xNew = x*cos(yAngle)*cos(zAngle) - y*cos(yAngle)*sin(zAngle) + z*sin(yAngle);
+		yNew = x*(sin(xAngle)*sin(yAngle)*cos(zAngle) + cos(xAngle)*sin(zAngle)) + y*(cos(xAngle)*cos(zAngle) - sin(xAngle)*sin(yAngle)*sin(zAngle)) - z*sin(xAngle)*cos(y);
+		zNew = x*(sin(xAngle)*sin(zAngle) - cos(xAngle)*sin(yAngle)*cos(zAngle)) + y*(cos(xAngle)*sin(yAngle)*sin(zAngle) + sin(xAngle)*cos(zAngle)) + z*cos(yAngle)*cos(xAngle);
+					
+
+		Vector3::x = xNew;
+		Vector3::y = yNew;
+		Vector3::z = zNew;
+	}
+
+	// computes and returns the cross product of 2 vectors
+	Vector3 cross(Vector3 vector)
+	{
+		Vector3 resultVector;
+		resultVector.x = Vector3::y * vector.z - Vector3::z * vector.y;
+		resultVector.y = -(Vector3::x * vector.z - Vector3::z * vector.x);
+		resultVector.z = Vector3::x * vector.y - Vector3::y * vector.x;
+		return resultVector;
+	}
+
+	Vector3 operator-(Vector3 const &obj)
+	{
+		Vector3 res;
+		res.x = x - obj.x;
+		res.y = y - obj.y;
+		res.z = z - obj.z;
+		return res;
+	}
+	Vector3 operator+(Vector3 const &obj)
+	{
+		Vector3 res;
+		res.x = x + obj.x;
+		res.y = y + obj.y;
+		res.z = z + obj.z;
+		return res;
+	}
+
+	Vector3 factor(float scalar)
+	{
+		Vector3::x *= scalar;
+		Vector3::y *= scalar;
+		Vector3::z *= scalar;
+	}
+	
+};
+Vector3 cameraPos = Vector3(20.0f, 5.0f, 20.0f);
+float yAngle = 0.0f, zAngle = 0.0f; //rotate over Y axis and Z axis
+
+// Initializes GLUT, the display mode, and main window; registers callbacks;
+// enters the main event loop.
+int main(int argc, char **argv)
+{
+	glutInit(&argc, argv);
+	glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB);
+	glutInitWindowPosition(400, 150);
+	glutInitWindowSize(WINDOW_WIDTH, WINDOW_HEIGHT);
+	glutCreateWindow("3D Robot - Nitay and Eyal");
+	Vector3 eye = Vector3(0.0f, 0.0f, 0.0f);
+	Vector3 target = Vector3(-1.0f, 0.0f, -1.0f);
+	Vector3 dir = Vector3(0.0f, 1.0f, 0.0f);
+	// lookAt(eye, target, dir);
+
+	glutReshapeFunc(reshape);
+	glutDisplayFunc(display);
+	glutTimerFunc(100, timer, 0);
+	glutKeyboardFunc(keyboard);
+	glutSpecialFunc(SpecialInput);
+
+	glutMainLoop();
+}
+
+// Handles the window reshape event
+void reshape(GLint w, GLint h)
+{
+	glViewport(0, 0, w, h);
+	aspect = w / h;
+	updateProjection();
+}
+
+void draw_rect(Vector3 origin, Vector3 v1, Vector3 v2, int size, float r, float g, float b)
+{
+	v1.factor(size);
+	v2.factor(size);
+	glColor3f(r, g, b);
+	glBegin(GL_QUADS);
+		glVertex3f(origin.x, origin.y, origin.z);
+		glVertex3f(origin.x + v1.x, origin.y + v1.y, origin.z + v1.z);
+		glVertex3f(origin.x + v1.x + v2.x, origin.y + v1.y + v2.y, origin.z + v1.z + v2.z);
+		glVertex3f(origin.x + v2.x, origin.y + v2.y, origin.z + v2.z);
+	glEnd();
+
+	glColor3f(0.8, 0.0, 0.0);
+}
+
+// Handles the display callback to show what we have drawn.
+void display()
+{
+	glClear(GL_COLOR_BUFFER_BIT);
+	glMatrixMode(GL_MODELVIEW);
+	glLoadIdentity();	
+		
+	Vector3 rotatedVec = Vector3(1 - cameraPos.x, 1 - cameraPos.y, 1 - cameraPos.z);
+    rotatedVec.rotate(0, yAngle, zAngle);
+
+    Vector3 dir = rotatedVec + cameraPos;
+
+
+	gluLookAt(cameraPos.x, cameraPos.y, cameraPos.z,
+			 dir.x, dir.y, dir.z,
+			  0.0f, 1.0f, 0.0f);
+	// glTranslatef(0, 0,-10);
+	glScalef(1, 1, 1);
+	glRotatef(15, 1.0, 1.0, 1.0);
+	// glRotatef(currentAngleOfRotation, 0.0, 1.0, 0.0);
+	glLineWidth(4.0);
+	// glutWireDodecahedron();
+	// glutWireDodecahedron();
+	Vector3 X = Vector3(0, 0, 0);
+	Vector3 v1 = Vector3(1,0,0);
+	Vector3 v2 =  Vector3(0, 0, 1);
+	for(int i = 0; i < 20; i++){
+		for(int j =0; j < 20; j++)
+		{
+			X = Vector3(i, 0 ,j);
+			if ((i + j) % 2 == 0)
+			{
+				draw_rect(X, v1, v2, 1, 0.0f ,0.0f, 0.0f);
+			}
+			else{
+				draw_rect(X, v1, v2, 1, 255.0f ,255.0f, 255.0f);
+			}
+			
+		}
+	}
+		
+	X = Vector3(0, 0, 0);
+	v2 = Vector3(0, 1, 0);
+	draw_rect(X, v1, v2, 20, 0.2f ,0.2f, 0.2f);
+	v1 = Vector3(0, 0, 1);
+	draw_rect(X, v1, v2, 20, 0.2f ,0.2f, 0.2f);
+	// glColor3f(0.0, 0.0, 0.8);
+
+	// glBegin(GL_QUADS);
+	// glVertex3f(X.x, X.y, X.z);
+	// glVertex3f(X.x + v1.x, X.y + v1.y, X.z + v1.z);
+	// glVertex3f(X.x + v1.x + v2.x, X.y + v1.y + v2.y, X.z + v1.z + v2.z);
+	// glVertex3f(X.x + v2.x, X.y + v2.y, X.z + v2.z);
+	// glEnd();
+
+	// glColor3f(0.8, 0.0, 0.0);
+
+	// v1.x = 2;
+	// v2.z = 2;
+	// //  v1 = {2, 0, 0};
+	// //  v2 = {0, 0, 2};
+	// glBegin(GL_QUADS);
+	// glVertex3f(X.x, X.y, X.z);
+	// glVertex3f(X.x + v1.x, X.y + v1.y, X.z + v1.z);
+	// glVertex3f(X.x + v1.x + v2.x, X.y + v1.y + v2.y, X.z + v1.z + v2.z);
+	// glVertex3f(X.x + v2.x, X.y + v2.y, X.z + v2.z);
+	// glEnd();
+
+	// glColor3f(0.0, 0.8, 0.0);
+	// X.x = 2;
+	// X.z = 2;
+	// v1.x = 4;
+	// v2.z = 4;
+	// //  v1 = {2, 0, 0};
+	// //  v2 = {0, 0, 2};
+	// glBegin(GL_QUADS);
+	// glVertex3f(X.x, X.y, X.z);
+	// glVertex3f(X.x + v1.x, X.y + v1.y, X.z + v1.z);
+	// glVertex3f(X.x + v1.x + v2.x, X.y + v1.y + v2.y, X.z + v1.z + v2.z);
+	// glVertex3f(X.x + v2.x, X.y + v2.y, X.z + v2.z);
+	// glEnd();
+
+	glPushMatrix();
+
+	glBegin(GL_LINES);
+	glColor3f(1.0, 0.0, 0.0);
+	glVertex3f(0.0, 0.0, 0.0);
+	glVertex3f(1000.0, 0.0, 0.0);
+
+	glColor3f(0.0, 1.0, 0.0);
+	glVertex3f(0.0, 0.0, 0.0);
+	glVertex3f(0.0, 1000.0, 0.0);
+
+	glColor3f(0.0, 0.0, 1.0);
+	glVertex3f(0.0, 0.0, 0.0);
+	glVertex3f(0.0, 0.0, 1000.0);
+	glEnd();
+
+	glPopMatrix();
+
+	glRasterPos3f(0.0, 3.0, 0.0);
+	for (char &c : msg)
+	{
+		glutBitmapCharacter(GLUT_BITMAP_TIMES_ROMAN_24, c);
+	}
+	glFlush();
+	glutSwapBuffers();
+}
+
+// Handles the timer by incrementing the angle of rotation and requesting the
+// window to display again.
+// Since the timer function is only called once, it sets the same function to
+// be called again.
+void timer(int v)
+{
+	currentAngleOfRotation += 1.0;
+	if (currentAngleOfRotation > 360.0)
+	{
+		currentAngleOfRotation -= 360.0;
+	}
+	glutPostRedisplay();
+	glutTimerFunc(1000 / FPS, timer, v);
+}
+
+void SpecialInput(int key, int x, int y){
+	float velocity = 0.2f;
+	switch (key)
+	{
+	case GLUT_KEY_LEFT:
+			yAngle -= velocity;
+			break;
+		case GLUT_KEY_RIGHT:
+			yAngle += velocity;
+			break;
+		case GLUT_KEY_UP:
+			zAngle += velocity;
+			break;
+		case GLUT_KEY_DOWN:
+			zAngle -= velocity;
+			break;
+			
+		default:
+			break;
+	}
+}
+
+// Handles keyboard press
+void keyboard(unsigned char key, int x, int y)
+{
+	// orthoProjection = !orthoProjection;
+	float velocity = 0.5f;
+	switch (key)
+	{
+		case 'w':
+			cameraPos.z -= velocity;
+			break;
+		case 's':
+			cameraPos.z += velocity;
+			break;		
+		case 'a':
+			cameraPos.x -= velocity;
+			break;
+		case 'd':
+			cameraPos.x += velocity;
+			break;
+		case ' ':
+			cameraPos.y += velocity;
+			break;
+		case 'z':
+			cameraPos.y -= velocity;
+			break;
+
+		default:
+			break;
+	}
+
+
+	updateProjection();
+}
+
+void updateProjection()
+{
+	glMatrixMode(GL_PROJECTION);
+	glLoadIdentity();
+	if (orthoProjection)
+	{
+		glOrtho(-5.0, 5.0, -5.0, 5.0, 1.0, 100.0);
+		glColor3f(0.2, 1.0, 0.2);
+	}
+	else
+	{
+		gluPerspective(60.0, aspect, 1, 100.0);
+		glColor3f(0.0, 0.0, 0.8);
+	}
+	glutPostRedisplay();
+}
