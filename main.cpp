@@ -32,6 +32,8 @@ static GLfloat currentAngleOfRotation = 0.0;
 // Set this to true to change projection.
 static bool orthoProjection = false;
 
+
+
 // Function where the scene drawing occures
 void display(void);
 
@@ -50,9 +52,18 @@ void timer(int v);
 // Function to update the projection
 void updateProjection();
 
-struct Point
-{
-	double x, y, z;
+struct Color{
+	float r, g, b;
+	public:
+		Color(float r, float g, float b){
+			Color::r = r;
+			Color::g = g;
+			Color::b = b;
+		}
+		Color(){
+			r = 0.2f;
+
+		}
 };
 
 // dependency: Vector3 and Matrix4
@@ -122,14 +133,19 @@ public:
 		return res;
 	}
 
-	Vector3 factor(float scalar)
+	void factor(float scalar)
 	{
 		Vector3::x *= scalar;
 		Vector3::y *= scalar;
 		Vector3::z *= scalar;
 	}
+	Vector3 getFactoredVector(float scalar){
+		return Vector3(Vector3::x * scalar, Vector3::y * scalar, Vector3::z * scalar);
+	}
 	
 };
+void draw_rect(Vector3 origin, Vector3 v1, Vector3 v2, float width, float height, Color color);
+
 Vector3 cameraPos = Vector3(20.0f, 5.0f, 20.0f);
 float yAngle = 0.0f, zAngle = 0.0f; //rotate over Y axis and Z axis
 
@@ -164,11 +180,14 @@ void reshape(GLint w, GLint h)
 	updateProjection();
 }
 
-void draw_rect(Vector3 origin, Vector3 v1, Vector3 v2, int size, float r, float g, float b)
+void draw_square(Vector3 origin, Vector3 v1, Vector3 v2, float size, Color color)
 {
-	v1.factor(size);
-	v2.factor(size);
-	glColor3f(r, g, b);
+	draw_rect(origin, v1, v2, size, size, color);	
+}
+void draw_rect(Vector3 origin, Vector3 v1, Vector3 v2, float width, float height, Color color){
+	v1.factor(width);
+	v2.factor(height);
+	glColor3f(color.r, color.g, color.b);
 	glBegin(GL_QUADS);
 		glVertex3f(origin.x, origin.y, origin.z);
 		glVertex3f(origin.x + v1.x, origin.y + v1.y, origin.z + v1.z);
@@ -178,7 +197,40 @@ void draw_rect(Vector3 origin, Vector3 v1, Vector3 v2, int size, float r, float 
 
 	glColor3f(0.8, 0.0, 0.0);
 }
+void draw_pole(Vector3 origin, Vector3 dir, Vector3 up, float width, float length, float height, Color color){
+	//draw bottom-top
+	Vector3 dirPerpendicular = up.cross(dir);
+	draw_rect(origin, dir, dirPerpendicular, width, length, color);
+	draw_rect(origin + up.getFactoredVector(height), dir, dirPerpendicular, width, length, color);
+	
+	//draw walls
+	draw_rect(origin, up, dirPerpendicular, height, width, color);
 
+	draw_rect(origin + dir.getFactoredVector(width), up, dirPerpendicular, height, width, color);
+
+	draw_rect(origin, up, dir, height, length, color);
+
+	draw_rect(origin+dirPerpendicular.getFactoredVector(length), up, dir, height, length, color);
+	
+
+}
+
+void draw_table(Vector3 origin){
+	float height = 3.0f;
+	float width = 0.3f;
+	float length = 0.3;
+	float distanceWidth = 5;
+	float distanceLength = 1;
+	draw_pole(origin + Vector3(0, 0, 0), Vector3(1, 0, 0), Vector3(0, 1, 0), width, length, height, Color(0.8f, 0.7f, 0.1f));
+
+	draw_pole(origin + Vector3(2, 0, 0), Vector3(1, 0, 0), Vector3(0, 1, 0), width, length, height, Color(0.8f, 0.7f, 0.1f));
+
+	draw_pole(origin + Vector3(0, 0, 2), Vector3(1, 0, 0), Vector3(0, 1, 0), width, length, height, Color(0.8f, 0.7f, 0.1f));
+
+	draw_pole(origin + Vector3(2, 0, 2), Vector3(1, 0, 0), Vector3(0, 1, 0), width, length, height, Color(0.8f, 0.7f, 0.1f));
+
+	draw_pole(origin + Vector3(-width, height, -length), Vector3(0, 0, 1), Vector3(0, 1, 0), height, height, width, Color(0.7, 0.4, 0.1));
+}
 // Handles the display callback to show what we have drawn.
 void display()
 {
@@ -195,13 +247,12 @@ void display()
 	gluLookAt(cameraPos.x, cameraPos.y, cameraPos.z,
 			 dir.x, dir.y, dir.z,
 			  0.0f, 1.0f, 0.0f);
-	// glTranslatef(0, 0,-10);
+
 	glScalef(1, 1, 1);
-	glRotatef(15, 1.0, 1.0, 1.0);
-	// glRotatef(currentAngleOfRotation, 0.0, 1.0, 0.0);
+	// glRotatef(15, 1.0, 1.0, 1.0);
 	glLineWidth(4.0);
-	// glutWireDodecahedron();
-	// glutWireDodecahedron();
+
+	//Draw floor
 	Vector3 X = Vector3(0, 0, 0);
 	Vector3 v1 = Vector3(1,0,0);
 	Vector3 v2 =  Vector3(0, 0, 1);
@@ -211,10 +262,10 @@ void display()
 			X = Vector3(i, 0 ,j);
 			if ((i + j) % 2 == 0)
 			{
-				draw_rect(X, v1, v2, 1, 0.0f ,0.0f, 0.0f);
+				draw_square(X, v1, v2, 1, Color(0.0f ,0.0f, 0.0f));
 			}
 			else{
-				draw_rect(X, v1, v2, 1, 255.0f ,255.0f, 255.0f);
+				draw_square(X, v1, v2, 1, Color(255.0f ,255.0f, 255.0f));
 			}
 			
 		}
@@ -222,44 +273,11 @@ void display()
 		
 	X = Vector3(0, 0, 0);
 	v2 = Vector3(0, 1, 0);
-	draw_rect(X, v1, v2, 20, 0.2f ,0.2f, 0.2f);
+	draw_square(X, v1, v2, 20, Color(0.2f ,0.2f, 0.2f));
 	v1 = Vector3(0, 0, 1);
-	draw_rect(X, v1, v2, 20, 0.2f ,0.2f, 0.2f);
-	// glColor3f(0.0, 0.0, 0.8);
+	draw_square(X, v1, v2, 20, Color(0.2f ,0.2f, 0.2f));
 
-	// glBegin(GL_QUADS);
-	// glVertex3f(X.x, X.y, X.z);
-	// glVertex3f(X.x + v1.x, X.y + v1.y, X.z + v1.z);
-	// glVertex3f(X.x + v1.x + v2.x, X.y + v1.y + v2.y, X.z + v1.z + v2.z);
-	// glVertex3f(X.x + v2.x, X.y + v2.y, X.z + v2.z);
-	// glEnd();
-
-	// glColor3f(0.8, 0.0, 0.0);
-
-	// v1.x = 2;
-	// v2.z = 2;
-	// //  v1 = {2, 0, 0};
-	// //  v2 = {0, 0, 2};
-	// glBegin(GL_QUADS);
-	// glVertex3f(X.x, X.y, X.z);
-	// glVertex3f(X.x + v1.x, X.y + v1.y, X.z + v1.z);
-	// glVertex3f(X.x + v1.x + v2.x, X.y + v1.y + v2.y, X.z + v1.z + v2.z);
-	// glVertex3f(X.x + v2.x, X.y + v2.y, X.z + v2.z);
-	// glEnd();
-
-	// glColor3f(0.0, 0.8, 0.0);
-	// X.x = 2;
-	// X.z = 2;
-	// v1.x = 4;
-	// v2.z = 4;
-	// //  v1 = {2, 0, 0};
-	// //  v2 = {0, 0, 2};
-	// glBegin(GL_QUADS);
-	// glVertex3f(X.x, X.y, X.z);
-	// glVertex3f(X.x + v1.x, X.y + v1.y, X.z + v1.z);
-	// glVertex3f(X.x + v1.x + v2.x, X.y + v1.y + v2.y, X.z + v1.z + v2.z);
-	// glVertex3f(X.x + v2.x, X.y + v2.y, X.z + v2.z);
-	// glEnd();
+	draw_table(Vector3(5, 0, 5));
 
 	glPushMatrix();
 
@@ -308,16 +326,16 @@ void SpecialInput(int key, int x, int y){
 	switch (key)
 	{
 	case GLUT_KEY_LEFT:
-			yAngle -= velocity;
-			break;
-		case GLUT_KEY_RIGHT:
 			yAngle += velocity;
 			break;
+		case GLUT_KEY_RIGHT:
+			yAngle -= velocity;
+			break;
 		case GLUT_KEY_UP:
-			zAngle += velocity;
+			zAngle -= velocity;
 			break;
 		case GLUT_KEY_DOWN:
-			zAngle -= velocity;
+			zAngle += velocity;
 			break;
 			
 		default:
