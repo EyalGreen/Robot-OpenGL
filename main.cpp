@@ -2,13 +2,18 @@
 
 #include <iostream>
 #include <stdlib.h>
-#include <GL/glut.h>
+
+#include <OpenGL/OpenGL.h>
+#include <GLUT/glut.h>
 #include <math.h>
 #include <string>
 #include <iostream>
 #include <vector>
 #include <limits>
 #include <iostream>
+
+
+
 using namespace std;
 
 // Constants
@@ -368,18 +373,48 @@ void SpecialInput(int key, int x, int y) {
 // Handles keyboard press
 void keyboard(unsigned char key, int x, int y)
 {
-	// orthoProjection = !orthoProjection;
+
+	Vector3 rotatedVec = Vector3(1 - cameraPos.x, 1 - cameraPos.y, 1 - cameraPos.z);
+	rotatedVec.rotate(0, yAngle, zAngle);
+
+
+	
+
+	// cameraPos + reotatedVec*t
+	
+	float t = 0.05f;
+	Vector3 dir = cameraPos - rotatedVec.getFactoredVector(t) ;
 	float velocity = 0.5f;
 	switch (key)
 	{
 	case 'w':
-		cameraPos.z -= velocity;
+		// cameraPos.z -= velocity;
+		t = -0.05f;
+		 dir = cameraPos - rotatedVec.getFactoredVector(t) ;
+		cameraPos.x = dir.x;
+		cameraPos.y = dir.y;
+		cameraPos.z = dir.z;
+		// cameraPos.x -= velocity*dir.x;
+		// cameraPos.y -= velocity*dir.y;
+		// cameraPos.z -= velocity*dir.z;
 		break;
 	case 's':
-		cameraPos.z += velocity;
+		t = 0.05f;
+		 dir = cameraPos - rotatedVec.getFactoredVector(t) ;
+		cameraPos.x = dir.x;
+		cameraPos.y = dir.y;
+		cameraPos.z = dir.z;
+		// cameraPos.z += velocity;
 		break;
 	case 'a':
-		cameraPos.x -= velocity;
+		rotatedVec.rotate(0, 90, 0);
+		t = -0.05f;
+		 dir = cameraPos - rotatedVec.getFactoredVector(t) ;
+		cameraPos.x = dir.x;
+		cameraPos.y = dir.y;
+		cameraPos.z = dir.z;
+
+		// cameraPos.x -= velocity;
 		break;
 	case 'd':
 		cameraPos.x += velocity;
